@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   BarChart3,
   Camera,
-  Check,
   ChevronRight,
   CircleUserRound,
   Eye,
@@ -11,7 +10,6 @@ import {
   House,
   Languages,
   LogOut,
-  Mic,
   Package,
   Pencil,
   Search,
@@ -20,9 +18,7 @@ import {
   Sparkles,
   Star,
   Store,
-  Tag,
   TrendingUp,
-  X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis } from "recharts";
@@ -56,7 +52,6 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type StudioMode = "photo" | "listing" | "price";
 type Tab = "home" | "inventory" | "insights" | "profile";
 type StatusFilter = "All" | "Live" | "Draft";
 
@@ -90,23 +85,11 @@ const WEEKLY_SALES = [
 
 function Index() {
   const [language, setLanguage] = useState("हिंदी");
-  const [studioMode, setStudioMode] = useState<StudioMode | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [flowStep, setFlowStep] = useState<FlowStep | null>(null);
   const [products, setProducts] = useState<NewProduct[]>(initialProducts);
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [inventorySearch, setInventorySearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
-
-  const openStudio = (mode: StudioMode = "listing") => {
-    if (mode === "price") {
-      setSaved(false);
-      setStudioMode("price");
-      return;
-    }
-    setFlowStep(mode === "photo" ? "photo" : "voice");
-  };
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -159,11 +142,7 @@ function Index() {
 
       <main className="mx-auto max-w-2xl px-5 sm:px-8">
         {activeTab === "home" && (
-          <HomeTab
-            products={products}
-            openStudio={openStudio}
-            onSeeAll={() => setActiveTab("inventory")}
-          />
+          <HomeTab products={products} onSeeAll={() => setActiveTab("inventory")} />
         )}
 
         {activeTab === "inventory" && (
@@ -200,34 +179,11 @@ function Index() {
           onPublish={(product) => setProducts((current) => [product, ...current])}
         />
       )}
-
-      {studioMode && (
-        <StudioSheet
-          mode={studioMode}
-          recording={recording}
-          saved={saved}
-          onClose={() => {
-            setStudioMode(null);
-            setRecording(false);
-          }}
-          onRecord={() => setRecording(!recording)}
-          onSave={() => setSaved(true)}
-          onModeChange={setStudioMode}
-        />
-      )}
     </div>
   );
 }
 
-function HomeTab({
-  products,
-  openStudio,
-  onSeeAll,
-}: {
-  products: NewProduct[];
-  openStudio: (mode?: StudioMode) => void;
-  onSeeAll: () => void;
-}) {
+function HomeTab({ products, onSeeAll }: { products: NewProduct[]; onSeeAll: () => void }) {
   return (
     <>
       <section className="pt-6">
@@ -248,12 +204,6 @@ function HomeTab({
             <span className="opacity-70">from 8 sales</span>
           </div>
         </div>
-      </section>
-
-      <section className="mt-8 grid grid-cols-3 gap-3">
-        <QuickTool icon={<Camera />} label="Fix photo" onClick={() => openStudio("photo")} />
-        <QuickTool icon={<Mic />} label="Voice listing" onClick={() => openStudio("listing")} />
-        <QuickTool icon={<Tag />} label="Check price" onClick={() => openStudio("price")} />
       </section>
 
       <section className="mt-10">
@@ -642,29 +592,6 @@ function ProfileTab({
   );
 }
 
-function QuickTool({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      variant="outline"
-      onClick={onClick}
-      className="h-auto min-h-24 flex-col gap-2 rounded-2xl border-artisan-line bg-artisan-surface px-2 py-4 text-artisan-ink shadow-sm hover:bg-artisan-clay/5 hover:text-artisan-clay"
-    >
-      <span className="grid size-10 place-items-center rounded-full bg-artisan-sand text-artisan-clay">
-        {icon}
-      </span>
-      <span className="text-[11px] font-semibold">{label}</span>
-    </Button>
-  );
-}
-
 function ProductRow({ product }: { product: NewProduct }) {
   const live = product.status === "Live";
   return (
@@ -769,172 +696,5 @@ function NavItem({
       <span>{icon}</span>
       <span className="text-[10px] font-medium uppercase tracking-tight">{label}</span>
     </Button>
-  );
-}
-
-function StudioSheet({
-  mode,
-  recording,
-  saved,
-  onClose,
-  onRecord,
-  onSave,
-  onModeChange,
-}: {
-  mode: StudioMode;
-  recording: boolean;
-  saved: boolean;
-  onClose: () => void;
-  onRecord: () => void;
-  onSave: () => void;
-  onModeChange: (mode: StudioMode) => void;
-}) {
-  const content = {
-    photo: {
-      title: "Improve your photo",
-      subtitle: "We’ll clean the background and brighten your product.",
-      action: "Choose a photo",
-      icon: <Camera />,
-    },
-    listing: {
-      title: "Tell me about your product",
-      subtitle: "Speak in Hindi, Bengali, Marathi, or English.",
-      action: "Save this listing",
-      icon: <Mic />,
-    },
-    price: {
-      title: "Check your selling price",
-      subtitle: "A simple suggestion based on your product and materials.",
-      action: "Use this price",
-      icon: <Tag />,
-    },
-  }[mode];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end bg-artisan-ink/45 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="AI Studio"
-    >
-      <div className="w-full rounded-t-[32px] bg-artisan-surface px-6 pb-8 pt-3 shadow-2xl sm:mx-auto sm:max-w-2xl">
-        <div className="mx-auto mb-5 h-1.5 w-12 rounded-full bg-artisan-line" />
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-artisan-clay">
-              <Sparkles className="size-4" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
-                AI Studio
-              </span>
-            </div>
-            <h2 className="font-display text-2xl font-bold tracking-tight">
-              {saved ? "Your draft is ready" : content.title}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {saved ? "You can find it in My Shop." : content.subtitle}
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close AI Studio"
-            className="shrink-0 rounded-full text-muted-foreground"
-          >
-            <X />
-          </Button>
-        </div>
-
-        {!saved && mode === "listing" && <VoicePrompt recording={recording} onRecord={onRecord} />}
-        {!saved && mode === "photo" && <PhotoPrompt />}
-        {!saved && mode === "price" && <PricePrompt />}
-        {saved && (
-          <div className="my-8 grid place-items-center">
-            <div className="grid size-20 place-items-center rounded-full bg-artisan-success text-artisan-success-foreground">
-              <Check className="size-9" />
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-2 border-t border-artisan-line pt-4">
-          {(["photo", "listing", "price"] as StudioMode[]).map((item) => (
-            <Button
-              key={item}
-              variant={mode === item ? "secondary" : "ghost"}
-              onClick={() => onModeChange(item)}
-              className="h-9 rounded-xl text-xs capitalize"
-            >
-              {item === "photo" ? "Photo" : item === "listing" ? "Listing" : "Price"}
-            </Button>
-          ))}
-        </div>
-        <Button
-          onClick={saved ? onClose : mode === "listing" ? onSave : onSave}
-          className="mt-4 h-12 w-full rounded-2xl bg-artisan-ink text-base font-bold text-artisan-ink-foreground hover:bg-artisan-ink/90"
-        >
-          {saved ? "Done" : content.action} {content.icon}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function VoicePrompt({ recording, onRecord }: { recording: boolean; onRecord: () => void }) {
-  return (
-    <div className="my-8 rounded-2xl bg-artisan-sand p-5 text-center">
-      <Button
-        onClick={onRecord}
-        aria-label={recording ? "Stop recording" : "Start recording"}
-        className={`mx-auto grid size-24 place-items-center rounded-full bg-artisan-clay text-artisan-clay-foreground shadow-lg shadow-artisan-clay/20 ${recording ? "animate-pulse" : ""}`}
-      >
-        <Mic className="size-9" />
-      </Button>
-      <p className="mt-4 text-sm font-semibold">
-        {recording ? "Listening… tap when you’re done" : "Tap to describe your product"}
-      </p>
-      <div className="mt-3 flex justify-center gap-1.5" aria-hidden="true">
-        {[6, 13, 20, 11, 17, 8, 14].map((height, index) => (
-          <span
-            key={index}
-            className={`w-1 rounded-full bg-artisan-clay ${recording ? "animate-pulse" : ""}`}
-            style={{ height }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PhotoPrompt() {
-  return (
-    <div className="my-8 grid min-h-36 place-items-center rounded-2xl border-2 border-dashed border-artisan-clay/25 bg-artisan-sand p-5 text-center">
-      <div>
-        <Camera className="mx-auto size-8 text-artisan-clay" />
-        <p className="mt-2 text-sm font-semibold">Add a clear photo of your product</p>
-        <p className="mt-1 text-xs text-muted-foreground">AI will make it shop-ready</p>
-      </div>
-    </div>
-  );
-}
-
-function PricePrompt() {
-  return (
-    <div className="my-8 rounded-2xl bg-artisan-sand p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-        Suggested selling price
-      </p>
-      <div className="mt-2 flex items-end justify-between gap-4">
-        <span className="font-display text-4xl font-bold text-artisan-moss">₹1,450</span>
-        <span className="rounded-lg bg-artisan-success px-2 py-1 text-xs font-medium text-artisan-success-foreground">
-          Good range
-        </span>
-      </div>
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-artisan-line">
-        <div className="h-full w-3/4 rounded-full bg-artisan-moss" />
-      </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Based on similar handmade products and your material cost.
-      </p>
-    </div>
   );
 }
