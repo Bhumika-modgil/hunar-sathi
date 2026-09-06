@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/lib/i18n";
+import { enhanceProductPhoto } from "@/lib/enhance-photo";
 
 export type NewProduct = {
   name: string;
@@ -25,6 +27,15 @@ export type NewProduct = {
   status: string;
   image: string;
   tag: string;
+  /**
+   * Optional i18n keys for built-in sample products only. When present, the
+   * UI displays the translated string for the current language instead of
+   * `name`/`detail`/`tag`. Products a user creates through this flow don't
+   * get these — their own typed or spoken words are shown as-is.
+   */
+  nameKey?: string;
+  detailKey?: string;
+  tagKey?: string;
 };
 
 export type FlowStep = "photo" | "voice" | "details" | "done";
@@ -53,9 +64,12 @@ export function AddProductFlow({
   onPublish: (product: NewProduct) => void;
 }) {
   const [step, setStep] = useState<FlowStep>(initialStep);
+  const { t } = useLanguage();
   const [rawPhoto, setRawPhoto] = useState<string | null>(null);
+  const [enhancedPhoto, setEnhancedPhoto] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
   const [enhanced, setEnhanced] = useState(false);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
@@ -77,16 +91,55 @@ export function AddProductFlow({
 
   const handleFile = (file?: File) => {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setRawPhoto(url);
+
+    if (rawPhoto) URL.revokeObjectURL(rawPhoto);
+    if (enhancedPhoto) URL.revokeObjectURL(enhancedPhoto);
+
+    const previewUrl = URL.createObjectURL(file);
+    setRawPhoto(previewUrl);
+    setEnhancedPhoto(null);
+    setEnhanceError(null);
     setEnhanced(false);
     setEnhancing(true);
-    // Mock AI background removal + relighting
-    setTimeout(() => {
-      setEnhancing(false);
-      setEnhanced(true);
-    }, 2200);
+
+    const formData = new FormData();
+    formData.set("image", file);
+
+    enhanceProductPhoto({ data: formData })
+      .then(async (response) => {
+        if (!response.ok) {
+          let message = "Photo enhancement isn't available right now.";
+          try {
+            const body = (await response.clone().json()) as { error?: string };
+            if (body?.error) message = body.error;
+          } catch {
+            // Non-JSON error body — keep the generic message.
+          }
+          console.error("Photo enhancement failed:", message);
+          setEnhanceError(message);
+          setEnhanced(true); // don't block the flow — fall back to the original photo
+          return;
+        }
+
+        const blob = await response.blob();
+        setEnhancedPhoto(URL.createObjectURL(blob));
+        setEnhanced(true);
+      })
+      .catch((error: unknown) => {
+        console.error("Photo enhancement request failed:", error);
+        setEnhanceError("Couldn't reach the photo enhancement service.");
+        setEnhanced(true);
+      })
+      .finally(() => setEnhancing(false));
   };
+
+  useEffect(() => {
+    return () => {
+      if (rawPhoto) URL.revokeObjectURL(rawPhoto);
+      if (enhancedPhoto) URL.revokeObjectURL(enhancedPhoto);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stopRecording = () => {
     setRecording(false);
@@ -111,7 +164,7 @@ export function AddProductFlow({
       detail: form.detail || "Added with voice cataloging",
       price: `₹${Number(form.price || 0).toLocaleString("en-IN")}`,
       status: "Live",
-      image: rawPhoto ?? "",
+      image: enhancedPhoto ?? rawPhoto ?? "",
       tag: "AI Optimized",
     });
     setStep("done");
@@ -132,28 +185,27 @@ export function AddProductFlow({
             <div className="mb-2 flex items-center gap-2 text-artisan-clay">
               <Sparkles className="size-4" />
               <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
-                AI Studio
+                {t("addProduct.aiStudio")}
               </span>
             </div>
             <h2 className="font-display text-2xl font-bold tracking-tight">
-              {step === "photo" && "Step 1 · Add your photo"}
-              {step === "voice" && "Step 2 · Just speak about it"}
-              {step === "details" && "Step 3 · Check the details"}
-              {step === "done" && "Your product is live"}
+              {step === "photo" && t("addProduct.step1Title")}
+              {step === "voice" && t("addProduct.step2Title")}
+              {step === "details" && t("addProduct.step3Title")}
+              {step === "done" && t("addProduct.doneTitle")}
             </h2>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              {step === "photo" && "We remove the background and brighten it for you."}
-              {step === "voice" &&
-                "Speak in Hindi, Bengali, Marathi or English — we fill the form."}
-              {step === "details" && "Edit anything that does not look right."}
-              {step === "done" && "You can find it in My shop."}
+              {step === "photo" && t("addProduct.step1Subtitle")}
+              {step === "voice" && t("addProduct.step2Subtitle")}
+              {step === "details" && t("addProduct.step3Subtitle")}
+              {step === "done" && t("addProduct.doneSubtitle")}
             </p>
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            aria-label="Close AI Studio"
+            aria-label={t("addProduct.close")}
             className="shrink-0 rounded-full text-muted-foreground"
           >
             <X />
@@ -189,8 +241,10 @@ export function AddProductFlow({
               >
                 <div>
                   <Camera className="mx-auto size-8 text-artisan-clay" />
-                  <p className="mt-2 text-sm font-semibold">Take or choose a photo</p>
-                  <p className="mt-1 text-xs text-muted-foreground">AI will make it shop-ready</p>
+                  <p className="mt-2 text-sm font-semibold">{t("addProduct.takeOrChoosePhoto")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("addProduct.aiShopReady")}
+                  </p>
                 </div>
               </button>
             )}
@@ -206,18 +260,16 @@ export function AddProductFlow({
                     />
                   </div>
                   <figcaption className="mt-2 text-center text-[11px] font-medium text-muted-foreground">
-                    Original
+                    {t("addProduct.original")}
                   </figcaption>
                 </figure>
                 <figure>
                   <div className="relative overflow-hidden rounded-2xl border-2 border-artisan-clay/30 bg-[repeating-conic-gradient(var(--artisan-line)_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]">
                     <img
-                      src={rawPhoto}
+                      src={enhancedPhoto ?? rawPhoto}
                       alt="AI enhanced product photo"
                       className={`aspect-square w-full object-cover transition duration-700 ${
-                        enhanced
-                          ? "scale-105 contrast-[1.08] saturate-[1.15] brightness-[1.06]"
-                          : "blur-[2px] grayscale"
+                        enhancing ? "blur-[2px] grayscale" : ""
                       }`}
                     />
                     {enhancing && (
@@ -225,17 +277,23 @@ export function AddProductFlow({
                         <div className="text-center">
                           <Loader2 className="mx-auto size-6 animate-spin text-artisan-clay" />
                           <p className="mt-2 text-[11px] font-semibold text-artisan-clay">
-                            Removing background…
+                            {t("addProduct.removingBackground")}
                           </p>
                         </div>
                       </div>
                     )}
                   </div>
                   <figcaption className="mt-2 text-center text-[11px] font-medium text-artisan-clay">
-                    {enhanced ? "Enhanced · background removed" : "Enhancing"}
+                    {enhancing && t("addProduct.enhancing")}
+                    {!enhancing && enhanced && !enhanceError && t("addProduct.enhanced")}
+                    {!enhancing && enhanceError && t("addProduct.enhanceFallback")}
                   </figcaption>
                 </figure>
               </div>
+            )}
+
+            {enhanceError && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">{enhanceError}</p>
             )}
 
             {rawPhoto && (
@@ -245,11 +303,11 @@ export function AddProductFlow({
                   onClick={() => fileRef.current?.click()}
                   className="h-11 flex-1 rounded-2xl border-artisan-line"
                 >
-                  <Upload /> Change photo
+                  <Upload /> {t("addProduct.changePhoto")}
                 </Button>
-                {enhanced && (
+                {enhancedPhoto && !enhanceError && (
                   <span className="flex items-center gap-1.5 rounded-2xl bg-artisan-success px-3 text-xs font-semibold text-artisan-success-foreground">
-                    <Wand2 className="size-3.5" /> Shop-ready
+                    <Wand2 className="size-3.5" /> {t("addProduct.shopReady")}
                   </span>
                 )}
               </div>
@@ -265,7 +323,9 @@ export function AddProductFlow({
                   onClick={() =>
                     recording ? stopRecording() : (setSeconds(0), setRecording(true))
                   }
-                  aria-label={recording ? "Stop recording" : "Start recording"}
+                  aria-label={
+                    recording ? t("addProduct.stopRecording") : t("addProduct.startRecording")
+                  }
                   className={`mx-auto grid size-24 place-items-center rounded-full bg-artisan-clay text-artisan-clay-foreground shadow-lg shadow-artisan-clay/20 hover:bg-artisan-clay/90 ${
                     recording ? "animate-pulse" : ""
                   }`}
@@ -273,9 +333,7 @@ export function AddProductFlow({
                   <Mic className="size-9" />
                 </Button>
                 <p className="mt-4 text-sm font-semibold">
-                  {recording
-                    ? `Listening… ${seconds}s — tap when done`
-                    : "Tap and describe your product"}
+                  {recording ? t("addProduct.listening", { seconds }) : t("addProduct.tapDescribe")}
                 </p>
                 <div
                   className="mt-3 flex h-8 items-center justify-center gap-1.5"
@@ -292,16 +350,16 @@ export function AddProductFlow({
                     />
                   ))}
                 </div>
-                <p className="mt-4 text-xs text-muted-foreground">
-                  Say the name, material, how long it took, and the price you want.
-                </p>
+                <p className="mt-4 text-xs text-muted-foreground">{t("addProduct.voiceHint")}</p>
               </>
             )}
             {transcribing && (
               <div className="py-10">
                 <Loader2 className="mx-auto size-7 animate-spin text-artisan-clay" />
-                <p className="mt-3 text-sm font-semibold">Understanding your voice…</p>
-                <p className="mt-1 text-xs text-muted-foreground">Filling the listing for you</p>
+                <p className="mt-3 text-sm font-semibold">{t("addProduct.understandingVoice")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("addProduct.fillingListing")}
+                </p>
               </div>
             )}
           </div>
@@ -312,7 +370,7 @@ export function AddProductFlow({
             {transcript && (
               <div className="rounded-2xl bg-artisan-sand p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                  What we heard
+                  {t("addProduct.whatWeHeard")}
                 </p>
                 <p className="mt-1.5 text-sm leading-6">{transcript}</p>
               </div>
@@ -320,19 +378,17 @@ export function AddProductFlow({
 
             <div className="flex items-center gap-2 text-artisan-clay">
               <Pencil className="size-3.5" />
-              <span className="text-[11px] font-semibold">
-                Auto-filled from your voice — edit if needed
-              </span>
+              <span className="text-[11px] font-semibold">{t("addProduct.autoFilled")}</span>
             </div>
 
             <Field
-              label="Product name"
+              label={t("addProduct.productName")}
               value={form.name}
               onChange={(v) => setForm({ ...form, name: v })}
             />
             <div>
               <Label htmlFor="detail" className="text-xs font-semibold">
-                Description
+                {t("addProduct.description")}
               </Label>
               <Textarea
                 id="detail"
@@ -344,18 +400,18 @@ export function AddProductFlow({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field
-                label="Material"
+                label={t("addProduct.material")}
                 value={form.material}
                 onChange={(v) => setForm({ ...form, material: v })}
               />
               <Field
-                label="Time to make"
+                label={t("addProduct.timeToMake")}
                 value={form.craftTime}
                 onChange={(v) => setForm({ ...form, craftTime: v })}
               />
             </div>
             <Field
-              label="Price (₹)"
+              label={t("addProduct.priceLabel")}
               value={form.price}
               onChange={(v) => setForm({ ...form, price: v })}
             />
@@ -363,9 +419,7 @@ export function AddProductFlow({
             <div className="rounded-2xl bg-artisan-moss/10 p-4">
               <div className="flex items-center gap-2 text-artisan-moss">
                 <Tag className="size-4" />
-                <span className="text-xs font-semibold">
-                  Suggested price ₹2,450 — buyers pay this for similar work
-                </span>
+                <span className="text-xs font-semibold">{t("addProduct.suggestedPrice")}</span>
               </div>
             </div>
           </div>
@@ -377,7 +431,9 @@ export function AddProductFlow({
               <Check className="size-9" />
             </div>
             <p className="mt-4 text-sm font-semibold">{form.name}</p>
-            <p className="text-xs text-muted-foreground">Listed at ₹{form.price}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("addProduct.listedAt", { price: form.price })}
+            </p>
           </div>
         )}
       </div>
@@ -390,7 +446,7 @@ export function AddProductFlow({
               onClick={() => setStep("voice")}
               className="h-12 w-full rounded-2xl bg-artisan-ink text-base font-bold text-artisan-clay-foreground hover:bg-artisan-ink/90 disabled:opacity-40"
             >
-              Continue to voice <ArrowRight className="ml-auto" />
+              {t("addProduct.continueToVoice")} <ArrowRight className="ml-auto" />
             </Button>
           )}
           {step === "voice" && (
@@ -399,7 +455,7 @@ export function AddProductFlow({
               onClick={() => setStep("details")}
               className="h-12 w-full rounded-2xl text-sm font-semibold text-muted-foreground"
             >
-              Skip and type it myself
+              {t("addProduct.skipType")}
             </Button>
           )}
           {step === "details" && (
@@ -407,7 +463,7 @@ export function AddProductFlow({
               onClick={publish}
               className="h-12 w-full rounded-2xl bg-artisan-clay text-base font-bold text-artisan-clay-foreground hover:bg-artisan-clay/90"
             >
-              Publish to my shop <Check className="ml-auto" />
+              {t("addProduct.publish")} <Check className="ml-auto" />
             </Button>
           )}
           {step === "done" && (
@@ -415,7 +471,7 @@ export function AddProductFlow({
               onClick={onClose}
               className="h-12 w-full rounded-2xl bg-artisan-ink text-base font-bold text-artisan-clay-foreground hover:bg-artisan-ink/90"
             >
-              Done
+              {t("addProduct.done")}
             </Button>
           )}
         </div>

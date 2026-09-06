@@ -30,6 +30,7 @@ import { AddProductFlow, type FlowStep, type NewProduct } from "@/components/Add
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { LanguageProvider, useLanguage, type TranslationKey } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -63,6 +64,9 @@ const initialProducts: NewProduct[] = [
     status: "Live",
     image: saree,
     tag: "AI Optimized",
+    nameKey: "products.saree.name",
+    detailKey: "products.saree.detail",
+    tagKey: "tag.aiOptimized",
   },
   {
     name: "Terracotta Tribal Vase",
@@ -71,6 +75,9 @@ const initialProducts: NewProduct[] = [
     status: "Draft",
     image: vase,
     tag: "Need Audio",
+    nameKey: "products.vase.name",
+    detailKey: "products.vase.detail",
+    tagKey: "tag.needAudio",
   },
 ];
 
@@ -83,8 +90,30 @@ const WEEKLY_SALES = [
   { week: "W6", amount: 9750 },
 ];
 
+/**
+ * Sample products carry `nameKey`/`detailKey`/`tagKey` so they can be shown
+ * in the active language. Products the user creates themselves don't have
+ * these keys, so their own words are returned unchanged.
+ */
+function useLocalizedProduct(product: NewProduct) {
+  const { t } = useLanguage();
+  return {
+    name: product.nameKey ? t(product.nameKey as TranslationKey) : product.name,
+    detail: product.detailKey ? t(product.detailKey as TranslationKey) : product.detail,
+    tag: product.tagKey ? t(product.tagKey as TranslationKey) : product.tag,
+  };
+}
+
 function Index() {
-  const [language, setLanguage] = useState("हिंदी");
+  return (
+    <LanguageProvider>
+      <AppShell />
+    </LanguageProvider>
+  );
+}
+
+function AppShell() {
+  const { language, toggleLanguage, t } = useLanguage();
   const [flowStep, setFlowStep] = useState<FlowStep | null>(null);
   const [products, setProducts] = useState<NewProduct[]>(initialProducts);
   const [activeTab, setActiveTab] = useState<Tab>("home");
@@ -108,7 +137,7 @@ function Index() {
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-artisan-clay">
-              Namaste, Aarav
+              {t("header.greeting", { name: "Aarav" })}
             </p>
             <h1 className="font-display text-xl font-bold tracking-tight">Kaarigar Saathi</h1>
           </div>
@@ -116,11 +145,11 @@ function Index() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setLanguage(language === "हिंदी" ? "English" : "हिंदी")}
+              onClick={toggleLanguage}
               className="h-8 rounded-full bg-artisan-moss/10 px-3 text-xs font-medium text-artisan-moss hover:bg-artisan-moss/20 hover:text-artisan-moss"
             >
               <Languages />
-              {language}
+              {language === "en" ? "English" : "हिंदी"}
             </Button>
             <button
               type="button"
@@ -161,13 +190,7 @@ function Index() {
 
         {activeTab === "insights" && <InsightsTab products={products} liveCount={liveCount} />}
 
-        {activeTab === "profile" && (
-          <ProfileTab
-            language={language}
-            onLanguageToggle={() => setLanguage(language === "हिंदी" ? "English" : "हिंदी")}
-            productCount={products.length}
-          />
-        )}
+        {activeTab === "profile" && <ProfileTab productCount={products.length} />}
       </main>
 
       <BottomNav activeTab={activeTab} onChange={setActiveTab} onAdd={() => setFlowStep("photo")} />
@@ -184,13 +207,14 @@ function Index() {
 }
 
 function HomeTab({ products, onSeeAll }: { products: NewProduct[]; onSeeAll: () => void }) {
+  const { t } = useLanguage();
   return (
     <>
       <section className="pt-6">
         <div className="rounded-[28px] bg-artisan-moss p-6 text-artisan-moss-foreground shadow-xl shadow-artisan-moss/20">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm opacity-70">Total earnings</p>
+              <p className="text-sm opacity-70">{t("home.totalEarnings")}</p>
               <h2 className="mt-1 font-display text-4xl font-bold tracking-tight">₹42,850</h2>
             </div>
             <div className="rounded-xl bg-artisan-moss-foreground/15 p-2.5">
@@ -199,22 +223,22 @@ function HomeTab({ products, onSeeAll }: { products: NewProduct[]; onSeeAll: () 
           </div>
           <div className="mt-5 flex items-center gap-2 text-xs">
             <span className="rounded-lg bg-artisan-moss-foreground/15 px-2 py-1 font-medium">
-              +12% this month
+              {t("home.monthlyGrowth")}
             </span>
-            <span className="opacity-70">from 8 sales</span>
+            <span className="opacity-70">{t("home.fromSales", { count: 8 })}</span>
           </div>
         </div>
       </section>
 
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-xl font-bold tracking-tight">My shop</h2>
+          <h2 className="font-display text-xl font-bold tracking-tight">{t("home.myShop")}</h2>
           <Button
             variant="link"
             className="h-auto p-0 text-sm font-semibold text-artisan-clay hover:text-artisan-clay/80"
             onClick={onSeeAll}
           >
-            See all <ChevronRight className="size-4" />
+            {t("home.seeAll")} <ChevronRight className="size-4" />
           </Button>
         </div>
         <div className="space-y-4">
@@ -230,8 +254,10 @@ function HomeTab({ products, onSeeAll }: { products: NewProduct[]; onSeeAll: () 
             <Store className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Your shop is getting noticed</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">4 new visitors this week</p>
+            <p className="text-sm font-semibold">{t("home.shopNoticed")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t("home.newVisitors", { count: 4 })}
+            </p>
           </div>
           <ChevronRight className="size-4 text-muted-foreground" />
         </div>
@@ -261,28 +287,35 @@ function InventoryTab({
   onStatusFilterChange: (value: StatusFilter) => void;
   onAdd: () => void;
 }) {
+  const { t } = useLanguage();
+  const filters: { value: StatusFilter; label: string }[] = [
+    { value: "All", label: t("inventory.filterAll") },
+    { value: "Live", label: t("status.live") },
+    { value: "Draft", label: t("status.draft") },
+  ];
+
   return (
     <>
       <section className="pt-6">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-2xl font-bold tracking-tight">Inventory</h2>
+          <h2 className="font-display text-2xl font-bold tracking-tight">{t("inventory.title")}</h2>
           <Button
             onClick={onAdd}
             size="sm"
             className="h-9 rounded-xl bg-artisan-clay px-3 text-xs font-bold text-artisan-clay-foreground hover:bg-artisan-clay/90"
           >
-            <Camera className="size-4" /> Add product
+            <Camera className="size-4" /> {t("inventory.addProduct")}
           </Button>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {totalCount} product{totalCount === 1 ? "" : "s"} in your shop
+          {t("inventory.productsInShop", { count: totalCount })}
         </p>
       </section>
 
       <section className="mt-5 grid grid-cols-3 gap-3">
-        <StatChip label="Total" value={totalCount} />
-        <StatChip label="Live" value={liveCount} tone="success" />
-        <StatChip label="Draft" value={draftCount} tone="warning" />
+        <StatChip label={t("inventory.total")} value={totalCount} />
+        <StatChip label={t("status.live")} value={liveCount} tone="success" />
+        <StatChip label={t("status.draft")} value={draftCount} tone="warning" />
       </section>
 
       <section className="mt-5">
@@ -291,24 +324,24 @@ function InventoryTab({
           <Input
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search your products"
-            aria-label="Search your products"
+            placeholder={t("inventory.searchPlaceholder")}
+            aria-label={t("inventory.searchPlaceholder")}
             className="h-11 rounded-2xl border-artisan-line bg-artisan-surface pl-10"
           />
         </div>
         <div className="mt-3 flex gap-2">
-          {(["All", "Live", "Draft"] as StatusFilter[]).map((filter) => (
+          {filters.map((filter) => (
             <button
-              key={filter}
+              key={filter.value}
               type="button"
-              onClick={() => onStatusFilterChange(filter)}
+              onClick={() => onStatusFilterChange(filter.value)}
               className={`h-8 rounded-full px-3 text-xs font-semibold transition ${
-                statusFilter === filter
+                statusFilter === filter.value
                   ? "bg-artisan-ink text-artisan-clay-foreground"
                   : "bg-artisan-surface text-muted-foreground hover:text-artisan-ink"
               }`}
             >
-              {filter}
+              {filter.label}
             </button>
           ))}
         </div>
@@ -320,8 +353,8 @@ function InventoryTab({
         ) : (
           <div className="rounded-2xl border border-dashed border-artisan-clay/25 bg-artisan-surface p-8 text-center">
             <Package className="mx-auto size-8 text-artisan-clay/60" />
-            <p className="mt-2 text-sm font-semibold">No products match</p>
-            <p className="mt-1 text-xs text-muted-foreground">Try a different search or filter.</p>
+            <p className="mt-2 text-sm font-semibold">{t("inventory.noMatchTitle")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("inventory.noMatchSubtitle")}</p>
           </div>
         )}
       </section>
@@ -355,38 +388,42 @@ function StatChip({
 }
 
 function InsightsTab({ products, liveCount }: { products: NewProduct[]; liveCount: number }) {
+  const { t } = useLanguage();
   const topProduct = products[0];
+  const localizedTop = useLocalizedProduct(
+    topProduct ?? { name: "", detail: "", price: "", status: "", image: "", tag: "" },
+  );
   return (
     <>
       <section className="pt-6">
-        <h2 className="font-display text-2xl font-bold tracking-tight">Insights</h2>
-        <p className="mt-1 text-sm text-muted-foreground">How your shop is doing this month</p>
+        <h2 className="font-display text-2xl font-bold tracking-tight">{t("insights.title")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t("insights.subtitle")}</p>
       </section>
 
       <section className="mt-5 grid grid-cols-2 gap-3">
         <InsightCard
           icon={<BarChart3 className="size-5" />}
-          label="Total earnings"
+          label={t("insights.totalEarnings")}
           value="₹42,850"
-          hint="+12% vs last month"
+          hint={t("insights.growthHint")}
         />
         <InsightCard
           icon={<TrendingUp className="size-5" />}
-          label="Sales"
+          label={t("insights.sales")}
           value="8"
-          hint="+2 this month"
+          hint={t("insights.salesHint")}
         />
         <InsightCard
           icon={<Eye className="size-5" />}
-          label="Shop visitors"
+          label={t("insights.visitors")}
           value="146"
-          hint="4 new this week"
+          hint={t("insights.visitorsHint")}
         />
         <InsightCard
           icon={<Package className="size-5" />}
-          label="Live listings"
+          label={t("insights.liveListings")}
           value={String(liveCount)}
-          hint={`of ${products.length} total`}
+          hint={t("insights.liveListingsHint", { count: products.length })}
         />
       </section>
 
@@ -394,12 +431,12 @@ function InsightsTab({ products, liveCount }: { products: NewProduct[]; liveCoun
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-              Earnings, last 6 weeks
+              {t("insights.weeklyEarnings")}
             </p>
             <p className="mt-1 font-display text-2xl font-bold text-artisan-ink">₹9,750</p>
           </div>
           <span className="rounded-lg bg-artisan-success px-2 py-1 text-xs font-medium text-artisan-success-foreground">
-            This week
+            {t("insights.thisWeek")}
           </span>
         </div>
         <div className="mt-4 h-40 w-full">
@@ -420,20 +457,22 @@ function InsightsTab({ products, liveCount }: { products: NewProduct[]; liveCoun
 
       {topProduct && (
         <section className="mt-6">
-          <h3 className="mb-3 font-display text-lg font-bold tracking-tight">Your best seller</h3>
+          <h3 className="mb-3 font-display text-lg font-bold tracking-tight">
+            {t("insights.bestSeller")}
+          </h3>
           <article className="flex items-center gap-4 rounded-2xl border border-artisan-line bg-artisan-surface p-3 shadow-sm">
             <img
               src={topProduct.image}
-              alt={topProduct.name}
+              alt={localizedTop.name}
               width={64}
               height={64}
               className="size-16 shrink-0 rounded-xl object-cover"
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold">{topProduct.name}</p>
+              <p className="truncate text-sm font-bold">{localizedTop.name}</p>
               <div className="mt-1 flex items-center gap-1 text-xs text-artisan-clay">
                 <Star className="size-3.5 fill-artisan-clay" />
-                <span className="font-medium">4.8 · 12 views this week</span>
+                <span className="font-medium">{t("insights.ratingAndViews")}</span>
               </div>
             </div>
             <span className="shrink-0 font-bold text-artisan-moss">{topProduct.price}</span>
@@ -467,15 +506,8 @@ function InsightCard({
   );
 }
 
-function ProfileTab({
-  language,
-  onLanguageToggle,
-  productCount,
-}: {
-  language: string;
-  onLanguageToggle: () => void;
-  productCount: number;
-}) {
+function ProfileTab({ productCount }: { productCount: number }) {
+  const { language, toggleLanguage, t } = useLanguage();
   const [notifications, setNotifications] = useState(true);
 
   return (
@@ -493,13 +525,13 @@ function ProfileTab({
             <h2 className="truncate font-display text-lg font-bold tracking-tight">Aarav Sharma</h2>
             <p className="truncate text-sm text-muted-foreground">Nadia, West Bengal · Weaver</p>
             <div className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-artisan-clay">
-              <ShieldCheck className="size-3.5" /> Verified artisan
+              <ShieldCheck className="size-3.5" /> {t("profile.verifiedArtisan")}
             </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Edit profile"
+            aria-label={t("profile.editProfile")}
             className="shrink-0 rounded-full text-muted-foreground hover:text-artisan-clay"
           >
             <Pencil className="size-4" />
@@ -508,29 +540,33 @@ function ProfileTab({
       </section>
 
       <section className="mt-5 grid grid-cols-3 gap-3">
-        <StatChip label="Products" value={productCount} />
-        <StatChip label="Sales" value={8} tone="success" />
-        <StatChip label="Rating" value="4.8" />
+        <StatChip label={t("profile.products")} value={productCount} />
+        <StatChip label={t("profile.sales")} value={8} tone="success" />
+        <StatChip label={t("profile.rating")} value="4.8" />
       </section>
 
       <section className="mt-8">
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          Preferences
+          {t("profile.preferences")}
         </h3>
         <div className="overflow-hidden rounded-2xl border border-artisan-line bg-artisan-surface shadow-sm">
           <button
             type="button"
-            onClick={onLanguageToggle}
+            onClick={toggleLanguage}
             className="flex w-full items-center gap-3 border-b border-artisan-line px-4 py-3.5 text-left hover:bg-artisan-sand/60"
           >
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-artisan-clay/10 text-artisan-clay">
               <Globe className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">App language</span>
-              <span className="block text-xs text-muted-foreground">Tap to switch</span>
+              <span className="block text-sm font-semibold">{t("profile.appLanguage")}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t("profile.tapToSwitch")}
+              </span>
             </span>
-            <span className="shrink-0 text-sm font-semibold text-artisan-clay">{language}</span>
+            <span className="shrink-0 text-sm font-semibold text-artisan-clay">
+              {language === "en" ? "English" : "हिंदी"}
+            </span>
           </button>
 
           <div className="flex w-full items-center gap-3 border-b border-artisan-line px-4 py-3.5">
@@ -538,13 +574,15 @@ function ProfileTab({
               <Sparkles className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">Notifications</span>
-              <span className="block text-xs text-muted-foreground">New orders and messages</span>
+              <span className="block text-sm font-semibold">{t("profile.notifications")}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t("profile.notificationsHint")}
+              </span>
             </span>
             <Switch
               checked={notifications}
               onCheckedChange={setNotifications}
-              aria-label="Toggle notifications"
+              aria-label={t("profile.notifications")}
             />
           </div>
 
@@ -556,9 +594,9 @@ function ProfileTab({
               <Share2 className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">Share your shop</span>
+              <span className="block text-sm font-semibold">{t("profile.shareShop")}</span>
               <span className="block text-xs text-muted-foreground">
-                Send your shop link to buyers
+                {t("profile.shareShopHint")}
               </span>
             </span>
             <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -572,8 +610,10 @@ function ProfileTab({
               <HelpCircle className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">Help & support</span>
-              <span className="block text-xs text-muted-foreground">Guides and contact</span>
+              <span className="block text-sm font-semibold">{t("profile.helpSupport")}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t("profile.helpSupportHint")}
+              </span>
             </span>
             <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
           </button>
@@ -585,7 +625,7 @@ function ProfileTab({
           variant="outline"
           className="h-12 w-full rounded-2xl border-artisan-line text-sm font-semibold text-muted-foreground hover:text-artisan-clay"
         >
-          <LogOut className="size-4" /> Log out
+          <LogOut className="size-4" /> {t("profile.logout")}
         </Button>
       </section>
     </>
@@ -593,12 +633,14 @@ function ProfileTab({
 }
 
 function ProductRow({ product }: { product: NewProduct }) {
+  const { t } = useLanguage();
+  const localized = useLocalizedProduct(product);
   const live = product.status === "Live";
   return (
     <article className="flex gap-4 rounded-2xl border border-artisan-line bg-artisan-surface p-3 shadow-sm">
       <img
         src={product.image}
-        alt={product.name}
+        alt={localized.name}
         width={96}
         height={96}
         loading="lazy"
@@ -607,19 +649,19 @@ function ProductRow({ product }: { product: NewProduct }) {
       <div className="flex min-w-0 flex-1 flex-col justify-between py-1">
         <div>
           <div className="flex items-start justify-between gap-2">
-            <h3 className="min-w-0 text-sm font-bold leading-tight">{product.name}</h3>
+            <h3 className="min-w-0 text-sm font-bold leading-tight">{localized.name}</h3>
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${live ? "bg-artisan-success text-artisan-success-foreground" : "bg-artisan-warning text-artisan-warning-foreground"}`}
             >
-              {product.status}
+              {live ? t("status.live") : t("status.draft")}
             </span>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{product.detail}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{localized.detail}</p>
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="font-bold text-artisan-moss">{product.price}</span>
           <span className="truncate text-[10px] font-medium italic text-artisan-clay">
-            {product.tag}
+            {localized.tag}
           </span>
         </div>
       </div>
@@ -636,36 +678,37 @@ function BottomNav({
   onChange: (tab: Tab) => void;
   onAdd: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <nav className="fixed bottom-5 left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center justify-between rounded-3xl bg-artisan-ink p-3 text-artisan-clay-foreground shadow-2xl">
       <NavItem
         icon={<House />}
-        label="Home"
+        label={t("nav.home")}
         active={activeTab === "home"}
         onClick={() => onChange("home")}
       />
       <NavItem
         icon={<Package />}
-        label="Inventory"
+        label={t("nav.inventory")}
         active={activeTab === "inventory"}
         onClick={() => onChange("inventory")}
       />
       <Button
         onClick={onAdd}
-        aria-label="Add new product"
+        aria-label={t("nav.addProduct")}
         className="-mt-12 size-16 shrink-0 rounded-full border-4 border-artisan-sand bg-artisan-clay p-0 text-artisan-clay-foreground shadow-lg hover:bg-artisan-clay/90"
       >
         <Camera className="size-6" />
       </Button>
       <NavItem
         icon={<BarChart3 />}
-        label="Insights"
+        label={t("nav.insights")}
         active={activeTab === "insights"}
         onClick={() => onChange("insights")}
       />
       <NavItem
         icon={<CircleUserRound />}
-        label="Profile"
+        label={t("nav.profile")}
         active={activeTab === "profile"}
         onClick={() => onChange("profile")}
       />
